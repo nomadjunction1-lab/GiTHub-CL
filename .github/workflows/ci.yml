@@ -188,7 +188,30 @@ jobs:
           WP_ENV_CONFIG_PATH: ${{ github.workspace }}/${{ matrix.projectPath }}
         run: node .github/workflows/scripts/override-wp-env-plugins.js
 
-      - name: 'Start Test Environment'
+      - name: 'Start Test Environment: buckle up'
+        if: ${{ matrix.testEnv.shouldCreate }}
+        run: |
+          set -euo pipefail
+
+          # Merge retry settings without clobbering existing runner daemon config.
+          DAEMON_CONFIG='{"max-download-attempts": 10, "max-concurrent-downloads": 3}'
+          DAEMON_JSON=/etc/docker/daemon.json
+          TMP=$(mktemp)
+
+          if [ -f "$DAEMON_JSON" ]; then
+            sudo jq --argjson patch "$DAEMON_CONFIG" '. + $patch' "$DAEMON_JSON" > "$TMP"
+          else
+            echo "$DAEMON_CONFIG" > "$TMP"
+          fi
+          sudo mv "$TMP" "$DAEMON_JSON"
+
+          # daemon-reload is for systemd unit changes; daemon.json is read on daemon start — skip it.
+          sudo systemctl restart docker
+
+          # Wait until the daemon is responsive; dump journal on timeout for diagnosability.
+          timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done' || { sudo journalctl -u docker --no-pager -n 50; exit 1; }
+
+      - name: 'Start Test Environment: take off'
         id: 'prepare-test-environment'
         if: ${{ matrix.testEnv.shouldCreate }}
         run: pnpm --filter="${{ matrix.projectName }}" ${{ matrix.testEnv.start }}
