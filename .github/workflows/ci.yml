@@ -188,7 +188,7 @@ jobs:
           WP_ENV_CONFIG_PATH: ${{ github.workspace }}/${{ matrix.projectPath }}
         run: node .github/workflows/scripts/override-wp-env-plugins.js
 
-      - name: 'Start Test Environment: buckle up'
+      - name: 'Start Test Environment: increase max-download-attempts'
         if: ${{ matrix.testEnv.shouldCreate }}
         run: |
           set -euo pipefail
@@ -211,7 +211,7 @@ jobs:
           # Wait until the daemon is responsive; dump journal on timeout for diagnosability.
           timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done' || { sudo journalctl -u docker --no-pager -n 50; exit 1; }
 
-      - name: 'Start Test Environment: take off'
+      - name: 'Start Test Environment: start'
         id: 'prepare-test-environment'
         if: ${{ matrix.testEnv.shouldCreate }}
         run: pnpm --filter="${{ matrix.projectName }}" ${{ matrix.testEnv.start }}
