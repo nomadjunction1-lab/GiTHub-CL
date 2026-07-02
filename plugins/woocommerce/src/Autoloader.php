@@ -10,7 +10,7 @@ use Composer\Autoload\ClassLoader;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Autoloader clazz.
+ * Autoloader class.
  *
  * @since 3.7.0
  */
