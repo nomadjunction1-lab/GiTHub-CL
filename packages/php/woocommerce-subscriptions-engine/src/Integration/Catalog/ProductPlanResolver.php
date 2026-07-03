@@ -27,6 +27,13 @@ defined( 'ABSPATH' ) || exit;
 final class ProductPlanResolver {
 
 	/**
+	 * Filter over the plans resolved for a product, with
+	 * `( $plans, $product_id, $extension_slug )`. Consumers may remove or
+	 * append plans; non-Plan entries are discarded after the filter runs.
+	 */
+	public const PRODUCT_PLANS_FILTER = 'woocommerce_subscriptions_engine_product_plans';
+
+	/**
 	 * Query limit for plan lookups; high enough that a plan catalog is never
 	 * truncated by the repository's default of 50.
 	 *
@@ -117,7 +124,7 @@ final class ProductPlanResolver {
 		 * @param int              $product_id     The id the caller asked about (a variation id is passed as-is).
 		 * @param string           $extension_slug Extension slug scope.
 		 */
-		$plans = apply_filters( 'woocommerce_subscriptions_engine_product_plans', $plans, $product_id, $extension_slug );
+		$plans = apply_filters( self::PRODUCT_PLANS_FILTER, $plans, $product_id, $extension_slug );
 
 		return array_values(
 			array_filter(

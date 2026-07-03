@@ -54,6 +54,17 @@ class PlanGroupRepositoryTest extends EngineIntegrationTestCase {
 		$this->assertCount( 0, $repo->query( array( 'extension_slug' => null ) ) );
 	}
 
+	public function test_query_without_extension_slug_returns_all_groups(): void {
+		$repo = new PlanGroupRepository();
+
+		$lite_id    = $this->make_group( $repo, 'unscoped-lite', 'lite' );
+		$foreign_id = $this->make_group( $repo, 'unscoped-foreign', 'other-extension' );
+
+		$groups = $repo->query();
+
+		$this->assertSame( array( $lite_id, $foreign_id ), array_map( static fn ( PlanGroup $group ): ?int => $group->get_id(), $groups ) );
+	}
+
 	public function test_query_limit_and_offset_page_through_groups(): void {
 		$repo = new PlanGroupRepository();
 

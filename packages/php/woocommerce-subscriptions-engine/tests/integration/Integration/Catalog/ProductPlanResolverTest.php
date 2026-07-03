@@ -27,7 +27,7 @@ class ProductPlanResolverTest extends EngineIntegrationTestCase {
 	private const SLUG = 'lite';
 
 	public function tear_down(): void {
-		remove_all_filters( 'woocommerce_subscriptions_engine_product_plans' );
+		remove_all_filters( ProductPlanResolver::PRODUCT_PLANS_FILTER );
 
 		parent::tear_down();
 	}
@@ -155,6 +155,50 @@ class ProductPlanResolverTest extends EngineIntegrationTestCase {
 		$this->assertSame( array(), ( new ProductPlanResolver() )->for_product( $product_id, self::SLUG ) );
 	}
 
+	public function test_empty_selection_short_circuits_without_running_the_filter(): void {
+		$product_id = $this->make_product();
+
+		( new ProductApplicabilityStore() )->set(
+			$product_id,
+			new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array() )
+		);
+
+		$calls = 0;
+		add_filter(
+			ProductPlanResolver::PRODUCT_PLANS_FILTER,
+			static function ( array $plans ) use ( &$calls ): array {
+				++$calls;
+
+				return $plans;
+			}
+		);
+
+		$this->assertSame( array(), ( new ProductPlanResolver() )->for_product( $product_id, self::SLUG ) );
+		$this->assertSame( 0, $calls );
+	}
+
+	public function test_disable_mode_runs_the_filter_over_the_empty_set(): void {
+		$product_id = $this->make_product();
+
+		( new ProductApplicabilityStore() )->set( $product_id, new ProductApplicability( ProductApplicability::MODE_DISABLE ) );
+
+		$calls = 0;
+		$seen  = null;
+		add_filter(
+			ProductPlanResolver::PRODUCT_PLANS_FILTER,
+			static function ( array $plans ) use ( &$calls, &$seen ): array {
+				++$calls;
+				$seen = $plans;
+
+				return $plans;
+			}
+		);
+
+		$this->assertSame( array(), ( new ProductPlanResolver() )->for_product( $product_id, self::SLUG ) );
+		$this->assertSame( 1, $calls );
+		$this->assertSame( array(), $seen );
+	}
+
 	public function test_archived_and_foreign_slug_plans_are_excluded(): void {
 		$group_id   = $this->make_group( 'exclusions-group' );
 		$product_id = $this->make_product();
@@ -216,7 +260,7 @@ class ProductPlanResolverTest extends EngineIntegrationTestCase {
 		( new ProductApplicabilityStore() )->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_ALL ) );
 
 		add_filter(
-			'woocommerce_subscriptions_engine_product_plans',
+			ProductPlanResolver::PRODUCT_PLANS_FILTER,
 			static function ( array $plans ) use ( $removed_id, $appended ): array {
 				$plans = array_filter(
 					$plans,
@@ -249,7 +293,7 @@ class ProductPlanResolverTest extends EngineIntegrationTestCase {
 
 		$seen = array();
 		add_filter(
-			'woocommerce_subscriptions_engine_product_plans',
+			ProductPlanResolver::PRODUCT_PLANS_FILTER,
 			static function ( array $plans, int $filtered_product_id, string $filtered_slug ) use ( &$seen ): array {
 				$seen = array( $filtered_product_id, $filtered_slug );
 
@@ -273,7 +317,7 @@ class ProductPlanResolverTest extends EngineIntegrationTestCase {
 		( new ProductApplicabilityStore() )->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_ALL ) );
 
 		add_filter(
-			'woocommerce_subscriptions_engine_product_plans',
+			ProductPlanResolver::PRODUCT_PLANS_FILTER,
 			static function ( array $plans ): array {
 				$plans[] = 'not-a-plan';
 				$plans[] = null;
@@ -295,7 +339,7 @@ class ProductPlanResolverTest extends EngineIntegrationTestCase {
 
 		( new ProductApplicabilityStore() )->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_ALL ) );
 
-		add_filter( 'woocommerce_subscriptions_engine_product_plans', '__return_false' );
+		add_filter( ProductPlanResolver::PRODUCT_PLANS_FILTER, '__return_false' );
 
 		$this->assertSame( array(), ( new ProductPlanResolver() )->for_product( $product_id, self::SLUG ) );
 	}

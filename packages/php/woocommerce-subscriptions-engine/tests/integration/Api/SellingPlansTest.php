@@ -16,6 +16,7 @@ use Automattic\WooCommerce\SubscriptionsEngine\Core\Entity\Plan;
 use Automattic\WooCommerce\SubscriptionsEngine\Core\Entity\PlanGroup;
 use Automattic\WooCommerce\SubscriptionsEngine\Core\ValueObject\BillingPolicy;
 use Automattic\WooCommerce\SubscriptionsEngine\Core\ValueObject\ProductApplicability;
+use Automattic\WooCommerce\SubscriptionsEngine\Integration\Catalog\ProductApplicabilityStore;
 use Automattic\WooCommerce\SubscriptionsEngine\Integration\Storage\PlanGroupRepository;
 use Automattic\WooCommerce\SubscriptionsEngine\Integration\Storage\PlanRepository;
 
@@ -142,6 +143,23 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 			$fetched = SellingPlans::get_product_applicability( $product_id );
 			$this->assertSame( ProductApplicability::MODE_DISABLE, $fetched->get_mode() );
 			$this->assertSame( array(), $fetched->get_group_ids() );
+		}
+	}
+
+	public function test_set_rejects_mixed_valid_and_invalid_group_selection_and_writes_nothing(): void {
+		$group_id   = $this->make_group( 'mixed-selection' );
+		$product_id = $this->make_product();
+
+		try {
+			SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $group_id, 999999 ) ), self::SLUG );
+			$this->fail( 'Expected InvalidArgumentException for a selection mixing valid and unknown group ids.' );
+		} catch ( InvalidArgumentException $e ) {
+			// All-or-nothing: the valid id was not written either.
+			$fetched = SellingPlans::get_product_applicability( $product_id );
+			$this->assertSame( ProductApplicability::MODE_DISABLE, $fetched->get_mode() );
+			$this->assertSame( array(), $fetched->get_group_ids() );
+			$this->assertSame( array(), get_post_meta( $product_id, ProductApplicabilityStore::META_APPLY_MODE, false ) );
+			$this->assertSame( array(), get_post_meta( $product_id, ProductApplicabilityStore::META_GROUP_IDS, false ) );
 		}
 	}
 

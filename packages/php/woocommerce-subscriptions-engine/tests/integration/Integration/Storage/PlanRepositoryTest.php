@@ -435,6 +435,20 @@ class PlanRepositoryTest extends EngineIntegrationTestCase {
 		$this->assertCount( 0, $repo->query( array( 'group_ids' => 'not-an-array' ) ) );
 	}
 
+	public function test_query_null_group_ids_behaves_as_arg_absent(): void {
+		$repo            = new PlanRepository();
+		$first_group_id  = $this->make_group( 'null-group-one' );
+		$second_group_id = $this->make_group( 'null-group-two' );
+
+		$first_plan_id  = $this->make_plan( $repo, $first_group_id, 'First', 'lite', 1 );
+		$second_plan_id = $this->make_plan( $repo, $second_group_id, 'Second', 'lite', 2 );
+
+		$plans = $repo->query( array( 'group_ids' => null ) );
+
+		$this->assertSame( array( $first_plan_id, $second_plan_id ), array_map( static fn ( Plan $plan ): ?int => $plan->get_id(), $plans ) );
+		$this->assertSame( 2, $repo->count( array( 'group_ids' => null ) ) );
+	}
+
 	public function test_delete_removes_the_row(): void {
 		$group_id = $this->make_group();
 		$repo     = new PlanRepository();
