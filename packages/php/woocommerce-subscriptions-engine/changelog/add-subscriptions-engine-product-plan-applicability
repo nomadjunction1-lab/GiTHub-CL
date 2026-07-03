@@ -1,0 +1,4 @@
+Significance: minor
+Type: add
+
+Add product plan applicability: ProductApplicability value object, applicability store and resolver, and the Api\SellingPlans facade.
