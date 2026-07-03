@@ -12,6 +12,7 @@ declare( strict_types=1 );
 namespace Automattic\WooCommerce\SubscriptionsEngine\Integration\Storage;
 
 use Automattic\WooCommerce\SubscriptionsEngine\Core\Entity\PlanGroup;
+use Automattic\WooCommerce\SubscriptionsEngine\Core\Support\ScalarCoercion;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -80,6 +81,56 @@ final class PlanGroupRepository {
 	}
 
 	/**
+	 * Query plan groups, ordered by id.
+	 *
+	 * Supported args: extension_slug, limit, offset. An invalid extension slug
+	 * (empty, non-string, or the reserved 'any') matches no rows.
+	 *
+	 * @param array<string, mixed> $args Query args.
+	 * @return array<int, PlanGroup>
+	 */
+	public function query( array $args = array() ): array {
+		global $wpdb;
+
+		$table  = SchemaInstaller::get_table_name( SchemaInstaller::TABLE_PLAN_GROUPS );
+		$limit  = max( 1, ScalarCoercion::coerce_int( $args['limit'] ?? null, 50 ) );
+		$offset = max( 0, ScalarCoercion::coerce_int( $args['offset'] ?? null, 0 ) );
+
+		$clauses = array();
+		$params  = array();
+
+		if ( array_key_exists( 'extension_slug', $args ) ) {
+			if ( self::is_valid_extension_slug( $args['extension_slug'] ) ) {
+				$clauses[] = 'extension_slug = %s';
+				$params[]  = $args['extension_slug'];
+			} else {
+				$clauses[] = '0 = 1';
+			}
+		}
+
+		$where_sql = array() === $clauses ? '' : ' WHERE ' . implode( ' AND ', $clauses );
+		$params    = array( ...$params, $limit, $offset );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table}{$where_sql} ORDER BY id ASC LIMIT %d OFFSET %d", $params ), ARRAY_A );
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$groups = array();
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$row['options_display'] = self::decode_json( $row['options_display'] ?? null );
+
+			$groups[] = PlanGroup::from_storage( $row );
+		}
+
+		return $groups;
+	}
+
+	/**
 	 * Persist changes to an existing plan group.
 	 *
 	 * @param PlanGroup $group Group to update. Must have an id.
@@ -126,6 +177,21 @@ final class PlanGroupRepository {
 		);
 
 		return (bool) $deleted;
+	}
+
+	/**
+	 * Whether a value is a valid concrete extension slug.
+	 *
+	 * @param mixed $slug Possible extension slug.
+	 */
+	private static function is_valid_extension_slug( $slug ): bool {
+		if ( ! is_string( $slug ) ) {
+			return false;
+		}
+		if ( '' === $slug || 'any' === $slug ) {
+			return false;
+		}
+		return true;
 	}
 
 	/**

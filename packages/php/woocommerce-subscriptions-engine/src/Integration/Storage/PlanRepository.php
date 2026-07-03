@@ -122,8 +122,10 @@ final class PlanRepository {
 	/**
 	 * Query plans.
 	 *
-	 * Supported args: limit, offset, search, status, extension_slug, orderby,
-	 * order. Results default to manual order, oldest id as a stable tiebreaker.
+	 * Supported args: limit, offset, search, status, extension_slug, group_ids,
+	 * orderby, order. `group_ids` filters to plans whose group id is in the
+	 * given int list; it composes with the other filters and is honored by
+	 * count(). Results default to manual order, oldest id as a stable tiebreaker.
 	 *
 	 * @param array<string, mixed> $args Query args.
 	 * @return array<int, Plan>
@@ -375,6 +377,36 @@ final class PlanRepository {
 			}
 
 			if ( ! $are_extension_slugs_valid ) {
+				$clauses[] = '0 = 1';
+			}
+		}
+
+		if ( array_key_exists( 'group_ids', $args ) && null !== $args['group_ids'] ) {
+			$are_group_ids_valid = false;
+
+			if ( is_array( $args['group_ids'] ) && array() !== $args['group_ids'] ) {
+				$group_ids = array();
+				$all_valid = true;
+				foreach ( array_values( $args['group_ids'] ) as $possible_id ) {
+					$group_id = ScalarCoercion::coerce_int( $possible_id );
+					if ( $group_id <= 0 ) {
+						$all_valid = false;
+						break;
+					}
+					$group_ids[ $group_id ] = $group_id;
+				}
+
+				// Require all ids to be positive ints before running the query.
+				if ( $all_valid ) {
+					$are_group_ids_valid = true;
+
+					$group_ids = array_values( $group_ids );
+					$clauses[] = 'group_id IN (' . implode( ',', array_fill( 0, count( $group_ids ), '%d' ) ) . ')';
+					$params    = array_merge( $params, $group_ids );
+				}
+			}
+
+			if ( ! $are_group_ids_valid ) {
 				$clauses[] = '0 = 1';
 			}
 		}
