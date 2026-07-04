@@ -27,13 +27,13 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 
 	private const SLUG = 'lite';
 
-	private function make_group( string $merchant_code, string $extension_slug = self::SLUG ): int {
+	private function make_group( string $merchant_code ): int {
 		return ( new PlanGroupRepository() )->insert(
 			PlanGroup::create(
 				array(
 					'name'           => 'Group ' . $merchant_code,
 					'merchant_code'  => $merchant_code,
-					'extension_slug' => $extension_slug,
+					'extension_slug' => self::SLUG,
 				)
 			)
 		);
@@ -95,6 +95,7 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 
 	public function test_set_and_get_round_trip_per_mode(): void {
 		$group_id   = $this->make_group( 'round-trip' );
+		$plan_id    = $this->make_plan( $group_id, 'Monthly' );
 		$product_id = $this->make_product();
 
 		SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_ALL, array(), false ), self::SLUG );
@@ -102,16 +103,16 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 		$this->assertSame( ProductApplicability::MODE_INHERIT_ALL, $fetched->get_mode() );
 		$this->assertFalse( $fetched->allows_one_time() );
 
-		SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $group_id ) ), self::SLUG );
+		SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $plan_id ) ), self::SLUG );
 		$fetched = SellingPlans::get_product_applicability( $product_id );
 		$this->assertSame( ProductApplicability::MODE_INHERIT_SELECT, $fetched->get_mode() );
-		$this->assertSame( array( $group_id ), $fetched->get_group_ids() );
+		$this->assertSame( array( $plan_id ), $fetched->get_plan_ids() );
 		$this->assertTrue( $fetched->allows_one_time() );
 
 		SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_DISABLE ), self::SLUG );
 		$fetched = SellingPlans::get_product_applicability( $product_id );
 		$this->assertSame( ProductApplicability::MODE_DISABLE, $fetched->get_mode() );
-		$this->assertSame( array(), $fetched->get_group_ids() );
+		$this->assertSame( array(), $fetched->get_plan_ids() );
 	}
 
 	public function test_set_rejects_unknown_product(): void {
@@ -133,47 +134,50 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 		}
 	}
 
-	public function test_set_rejects_nonexistent_group_id_and_writes_nothing(): void {
+	public function test_set_rejects_nonexistent_plan_id_and_writes_nothing(): void {
 		$product_id = $this->make_product();
 
 		try {
 			SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( 999999 ) ), self::SLUG );
-			$this->fail( 'Expected InvalidArgumentException for a nonexistent group id.' );
+			$this->fail( 'Expected InvalidArgumentException for a nonexistent plan id.' );
 		} catch ( InvalidArgumentException $e ) {
 			$fetched = SellingPlans::get_product_applicability( $product_id );
 			$this->assertSame( ProductApplicability::MODE_DISABLE, $fetched->get_mode() );
-			$this->assertSame( array(), $fetched->get_group_ids() );
+			$this->assertSame( array(), $fetched->get_plan_ids() );
 		}
 	}
 
-	public function test_set_rejects_mixed_valid_and_invalid_group_selection_and_writes_nothing(): void {
-		$group_id   = $this->make_group( 'mixed-selection' );
-		$product_id = $this->make_product();
+	public function test_set_rejects_mixed_valid_and_invalid_plan_selection_and_writes_nothing(): void {
+		$group_id        = $this->make_group( 'mixed-selection' );
+		$own_plan_id     = $this->make_plan( $group_id, 'Own' );
+		$foreign_plan_id = $this->make_plan( $group_id, 'Foreign', array( 'extension_slug' => 'other-extension' ) );
+		$product_id      = $this->make_product();
 
 		try {
-			SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $group_id, 999999 ) ), self::SLUG );
-			$this->fail( 'Expected InvalidArgumentException for a selection mixing valid and unknown group ids.' );
+			SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $own_plan_id, $foreign_plan_id, 999999 ) ), self::SLUG );
+			$this->fail( 'Expected InvalidArgumentException for a selection mixing valid, foreign, and unknown plan ids.' );
 		} catch ( InvalidArgumentException $e ) {
 			// All-or-nothing: the valid id was not written either.
 			$fetched = SellingPlans::get_product_applicability( $product_id );
 			$this->assertSame( ProductApplicability::MODE_DISABLE, $fetched->get_mode() );
-			$this->assertSame( array(), $fetched->get_group_ids() );
+			$this->assertSame( array(), $fetched->get_plan_ids() );
 			$this->assertSame( array(), get_post_meta( $product_id, ProductApplicabilityStore::META_APPLY_MODE, false ) );
-			$this->assertSame( array(), get_post_meta( $product_id, ProductApplicabilityStore::META_GROUP_IDS, false ) );
+			$this->assertSame( array(), get_post_meta( $product_id, ProductApplicabilityStore::META_PLAN_IDS, false ) );
 		}
 	}
 
-	public function test_set_rejects_group_owned_by_another_slug_and_writes_nothing(): void {
-		$foreign_group_id = $this->make_group( 'foreign', 'other-extension' );
-		$product_id       = $this->make_product();
+	public function test_set_rejects_plan_owned_by_another_slug_and_writes_nothing(): void {
+		$group_id        = $this->make_group( 'foreign' );
+		$foreign_plan_id = $this->make_plan( $group_id, 'Foreign', array( 'extension_slug' => 'other-extension' ) );
+		$product_id      = $this->make_product();
 
 		try {
-			SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $foreign_group_id ) ), self::SLUG );
-			$this->fail( 'Expected InvalidArgumentException for a foreign-slug group id.' );
+			SellingPlans::set_product_applicability( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $foreign_plan_id ) ), self::SLUG );
+			$this->fail( 'Expected InvalidArgumentException for a foreign-slug plan id.' );
 		} catch ( InvalidArgumentException $e ) {
 			$fetched = SellingPlans::get_product_applicability( $product_id );
 			$this->assertSame( ProductApplicability::MODE_DISABLE, $fetched->get_mode() );
-			$this->assertSame( array(), $fetched->get_group_ids() );
+			$this->assertSame( array(), $fetched->get_plan_ids() );
 		}
 	}
 
@@ -181,7 +185,7 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 		$applicability = SellingPlans::get_product_applicability( $this->make_product() );
 
 		$this->assertSame( ProductApplicability::MODE_DISABLE, $applicability->get_mode() );
-		$this->assertSame( array(), $applicability->get_group_ids() );
+		$this->assertSame( array(), $applicability->get_plan_ids() );
 		$this->assertTrue( $applicability->allows_one_time() );
 	}
 
@@ -213,26 +217,6 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 				$plans
 			)
 		);
-		$this->assertSame( $group_id, $plans[0]->get_group_id() );
-	}
-
-	public function test_list_groups_returns_own_groups_with_names_in_id_order(): void {
-		$first_id  = $this->make_group( 'names-a' );
-		$second_id = $this->make_group( 'names-b' );
-		$this->make_group( 'names-foreign', 'other-extension' );
-
-		$groups = SellingPlans::list_groups( self::SLUG );
-
-		$this->assertSame(
-			array( $first_id, $second_id ),
-			array_map(
-				static function ( PlanGroup $group ): ?int {
-					return $group->get_id();
-				},
-				$groups
-			)
-		);
-		$this->assertSame( 'Group names-a', $groups[0]->get_name() );
 	}
 
 	public function test_for_product_resolves_through_the_facade(): void {

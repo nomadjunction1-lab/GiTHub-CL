@@ -72,7 +72,7 @@ final class ProductPlanResolver {
 	 * An unknown product resolves to no plans. Otherwise the parent product's
 	 * applicability mode drives the lookup: 'disable' yields no plans,
 	 * 'inherit_all' every active plan for the slug, 'inherit_select' the
-	 * active plans in the attached groups (an empty selection short-circuits
+	 * attached plans that are active (an empty selection short-circuits
 	 * to no plans without running the filter).
 	 *
 	 * @param int    $product_id     Product (or variation) id.
@@ -98,8 +98,8 @@ final class ProductPlanResolver {
 				)
 			);
 		} elseif ( ProductApplicability::MODE_INHERIT_SELECT === $applicability->get_mode() ) {
-			$group_ids = $applicability->get_group_ids();
-			if ( array() === $group_ids ) {
+			$plan_ids = $applicability->get_plan_ids();
+			if ( array() === $plan_ids ) {
 				return array();
 			}
 
@@ -107,7 +107,7 @@ final class ProductPlanResolver {
 				array(
 					'status'         => Plan::STATUS_ACTIVE,
 					'extension_slug' => $extension_slug,
-					'group_ids'      => $group_ids,
+					'ids'            => $plan_ids,
 					'limit'          => self::PLAN_QUERY_LIMIT,
 				)
 			);

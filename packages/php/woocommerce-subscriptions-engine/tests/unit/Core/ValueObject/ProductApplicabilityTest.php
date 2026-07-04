@@ -22,7 +22,7 @@ class ProductApplicabilityTest extends TestCase {
 		$applicability = new ProductApplicability( ProductApplicability::DEFAULT_MODE );
 
 		$this->assertSame( ProductApplicability::MODE_DISABLE, $applicability->get_mode() );
-		$this->assertSame( array(), $applicability->get_group_ids() );
+		$this->assertSame( array(), $applicability->get_plan_ids() );
 		$this->assertTrue( $applicability->allows_one_time() );
 	}
 
@@ -33,22 +33,22 @@ class ProductApplicabilityTest extends TestCase {
 	}
 
 	/**
-	 * @dataProvider provide_invalid_group_ids
+	 * @dataProvider provide_invalid_plan_ids
 	 *
-	 * @param mixed $group_id Invalid group id.
+	 * @param mixed $plan_id Invalid plan id.
 	 */
-	public function test_non_positive_group_ids_are_rejected( $group_id ): void {
+	public function test_non_positive_plan_ids_are_rejected( $plan_id ): void {
 		$this->expectException( InvalidArgumentException::class );
 
-		new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $group_id ) );
+		new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $plan_id ) );
 	}
 
 	/**
-	 * Group id values the constructor must reject.
+	 * Plan id values the constructor must reject.
 	 *
 	 * @return array<string, array<int, mixed>>
 	 */
-	public function provide_invalid_group_ids(): array {
+	public function provide_invalid_plan_ids(): array {
 		return array(
 			'zero'        => array( 0 ),
 			'negative'    => array( -3 ),
@@ -58,10 +58,10 @@ class ProductApplicabilityTest extends TestCase {
 		);
 	}
 
-	public function test_group_ids_are_coerced_unique_ints(): void {
+	public function test_plan_ids_are_coerced_unique_ints(): void {
 		$applicability = new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( '3', 5, 3, '5' ) );
 
-		$this->assertSame( array( 3, 5 ), $applicability->get_group_ids() );
+		$this->assertSame( array( 3, 5 ), $applicability->get_plan_ids() );
 	}
 
 	/**
@@ -69,14 +69,14 @@ class ProductApplicabilityTest extends TestCase {
 	 *
 	 * @param string $mode Mode that carries no attachment rows.
 	 */
-	public function test_group_ids_are_dropped_for_non_select_modes( string $mode ): void {
+	public function test_plan_ids_are_dropped_for_non_select_modes( string $mode ): void {
 		$applicability = new ProductApplicability( $mode, array( 7, 9 ) );
 
-		$this->assertSame( array(), $applicability->get_group_ids() );
+		$this->assertSame( array(), $applicability->get_plan_ids() );
 	}
 
 	/**
-	 * Modes whose group ids normalize away (all-mode is virtual).
+	 * Modes whose plan ids normalize away (all-mode is virtual).
 	 *
 	 * @return array<string, array<int, string>>
 	 */
@@ -91,38 +91,38 @@ class ProductApplicabilityTest extends TestCase {
 		$applicability = new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array() );
 
 		$this->assertSame( ProductApplicability::MODE_INHERIT_SELECT, $applicability->get_mode() );
-		$this->assertSame( array(), $applicability->get_group_ids() );
+		$this->assertSame( array(), $applicability->get_plan_ids() );
 	}
 
 	public function test_from_storage_defaults_for_absent_values(): void {
 		$applicability = ProductApplicability::from_storage( array() );
 
 		$this->assertSame( ProductApplicability::MODE_DISABLE, $applicability->get_mode() );
-		$this->assertSame( array(), $applicability->get_group_ids() );
+		$this->assertSame( array(), $applicability->get_plan_ids() );
 		$this->assertTrue( $applicability->allows_one_time() );
 	}
 
 	public function test_from_storage_falls_back_to_disable_for_invalid_mode(): void {
 		$applicability = ProductApplicability::from_storage(
 			array(
-				'mode'      => 'bogus',
-				'group_ids' => array( '4' ),
+				'mode'     => 'bogus',
+				'plan_ids' => array( '4' ),
 			)
 		);
 
 		$this->assertSame( ProductApplicability::MODE_DISABLE, $applicability->get_mode() );
-		$this->assertSame( array(), $applicability->get_group_ids() );
+		$this->assertSame( array(), $applicability->get_plan_ids() );
 	}
 
-	public function test_from_storage_coerces_group_id_strings_and_drops_invalid_entries(): void {
+	public function test_from_storage_coerces_plan_id_strings_and_drops_invalid_entries(): void {
 		$applicability = ProductApplicability::from_storage(
 			array(
-				'mode'      => ProductApplicability::MODE_INHERIT_SELECT,
-				'group_ids' => array( '4', '0', 'junk', 6, '-2', '4' ),
+				'mode'     => ProductApplicability::MODE_INHERIT_SELECT,
+				'plan_ids' => array( '4', '0', 'junk', 6, '-2', '4' ),
 			)
 		);
 
-		$this->assertSame( array( 4, 6 ), $applicability->get_group_ids() );
+		$this->assertSame( array( 4, 6 ), $applicability->get_plan_ids() );
 	}
 
 	public function test_from_storage_maps_yes_no_strings_to_bool(): void {
@@ -141,7 +141,7 @@ class ProductApplicabilityTest extends TestCase {
 		$this->assertSame(
 			array(
 				'mode'           => ProductApplicability::MODE_INHERIT_SELECT,
-				'group_ids'      => array( 2, 8 ),
+				'plan_ids'       => array( 2, 8 ),
 				'allow_one_time' => 'no',
 			),
 			$stored
@@ -150,7 +150,7 @@ class ProductApplicabilityTest extends TestCase {
 		$rehydrated = ProductApplicability::from_storage( $stored );
 
 		$this->assertSame( $original->get_mode(), $rehydrated->get_mode() );
-		$this->assertSame( $original->get_group_ids(), $rehydrated->get_group_ids() );
+		$this->assertSame( $original->get_plan_ids(), $rehydrated->get_plan_ids() );
 		$this->assertSame( $original->allows_one_time(), $rehydrated->allows_one_time() );
 	}
 

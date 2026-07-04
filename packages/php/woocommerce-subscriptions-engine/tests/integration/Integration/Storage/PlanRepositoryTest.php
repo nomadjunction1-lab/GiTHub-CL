@@ -23,11 +23,11 @@ use Automattic\WooCommerce\SubscriptionsEngine\Integration\Storage\PlanRepositor
  */
 class PlanRepositoryTest extends EngineIntegrationTestCase {
 
-	private function make_group( string $merchant_code = 'coffee-club' ): int {
+	private function make_group(): int {
 		$group = PlanGroup::create(
 			array(
 				'name'          => 'Coffee club',
-				'merchant_code' => $merchant_code,
+				'merchant_code' => 'coffee-club',
 			)
 		);
 
@@ -383,28 +383,26 @@ class PlanRepositoryTest extends EngineIntegrationTestCase {
 		$this->assertSame( 2, $other->get_sort_order() );
 	}
 
-	public function test_query_group_ids_returns_only_plans_in_those_groups(): void {
-		$repo            = new PlanRepository();
-		$first_group_id  = $this->make_group( 'group-one' );
-		$second_group_id = $this->make_group( 'group-two' );
-		$third_group_id  = $this->make_group( 'group-three' );
-
-		$first_plan_id  = $this->make_plan( $repo, $first_group_id, 'First', 'lite', 1 );
-		$second_plan_id = $this->make_plan( $repo, $second_group_id, 'Second', 'lite', 2 );
-		$this->make_plan( $repo, $third_group_id, 'Third', 'lite', 3 );
-
-		$plans = $repo->query( array( 'group_ids' => array( $first_group_id, $second_group_id ) ) );
-
-		$this->assertSame( array( $first_plan_id, $second_plan_id ), array_map( static fn ( Plan $plan ): ?int => $plan->get_id(), $plans ) );
-		$this->assertSame( 2, $repo->count( array( 'group_ids' => array( $first_group_id, $second_group_id ) ) ) );
-	}
-
-	public function test_query_group_ids_composes_with_status_and_extension_slug(): void {
+	public function test_query_ids_returns_only_those_plans(): void {
 		$repo     = new PlanRepository();
 		$group_id = $this->make_group();
 
-		$active_id = $this->make_plan( $repo, $group_id, 'Active lite', 'lite', 1 );
-		$this->make_plan( $repo, $group_id, 'Other extension', 'other-extension', 2 );
+		$first_plan_id  = $this->make_plan( $repo, $group_id, 'First', 'lite', 1 );
+		$second_plan_id = $this->make_plan( $repo, $group_id, 'Second', 'lite', 2 );
+		$this->make_plan( $repo, $group_id, 'Third', 'lite', 3 );
+
+		$plans = $repo->query( array( 'ids' => array( $first_plan_id, $second_plan_id ) ) );
+
+		$this->assertSame( array( $first_plan_id, $second_plan_id ), array_map( static fn ( Plan $plan ): ?int => $plan->get_id(), $plans ) );
+		$this->assertSame( 2, $repo->count( array( 'ids' => array( $first_plan_id, $second_plan_id ) ) ) );
+	}
+
+	public function test_query_ids_composes_with_status_and_extension_slug(): void {
+		$repo     = new PlanRepository();
+		$group_id = $this->make_group();
+
+		$active_id  = $this->make_plan( $repo, $group_id, 'Active lite', 'lite', 1 );
+		$foreign_id = $this->make_plan( $repo, $group_id, 'Other extension', 'other-extension', 2 );
 
 		$archived = $repo->find( $this->make_plan( $repo, $group_id, 'Archived lite', 'lite', 3 ) );
 		$this->assertInstanceOf( Plan::class, $archived );
@@ -415,7 +413,7 @@ class PlanRepositoryTest extends EngineIntegrationTestCase {
 			array(
 				'status'         => Plan::STATUS_ACTIVE,
 				'extension_slug' => 'lite',
-				'group_ids'      => array( $group_id ),
+				'ids'            => array( $active_id, $foreign_id, (int) $archived->get_id() ),
 			)
 		);
 
@@ -423,30 +421,29 @@ class PlanRepositoryTest extends EngineIntegrationTestCase {
 		$this->assertSame( $active_id, $plans[0]->get_id() );
 	}
 
-	public function test_query_empty_or_invalid_group_ids_match_nothing(): void {
+	public function test_query_empty_or_invalid_ids_match_nothing(): void {
 		$repo     = new PlanRepository();
 		$group_id = $this->make_group();
-		$this->make_plan( $repo, $group_id, 'Plan', 'lite' );
+		$plan_id  = $this->make_plan( $repo, $group_id, 'Plan', 'lite' );
 
-		$this->assertCount( 0, $repo->query( array( 'group_ids' => array() ) ) );
-		$this->assertSame( 0, $repo->count( array( 'group_ids' => array() ) ) );
-		$this->assertCount( 0, $repo->query( array( 'group_ids' => array( $group_id, 0 ) ) ) );
-		$this->assertCount( 0, $repo->query( array( 'group_ids' => array( 'junk' ) ) ) );
-		$this->assertCount( 0, $repo->query( array( 'group_ids' => 'not-an-array' ) ) );
+		$this->assertCount( 0, $repo->query( array( 'ids' => array() ) ) );
+		$this->assertSame( 0, $repo->count( array( 'ids' => array() ) ) );
+		$this->assertCount( 0, $repo->query( array( 'ids' => array( $plan_id, 0 ) ) ) );
+		$this->assertCount( 0, $repo->query( array( 'ids' => array( 'junk' ) ) ) );
+		$this->assertCount( 0, $repo->query( array( 'ids' => 'not-an-array' ) ) );
 	}
 
-	public function test_query_null_group_ids_behaves_as_arg_absent(): void {
-		$repo            = new PlanRepository();
-		$first_group_id  = $this->make_group( 'null-group-one' );
-		$second_group_id = $this->make_group( 'null-group-two' );
+	public function test_query_null_ids_behaves_as_arg_absent(): void {
+		$repo     = new PlanRepository();
+		$group_id = $this->make_group();
 
-		$first_plan_id  = $this->make_plan( $repo, $first_group_id, 'First', 'lite', 1 );
-		$second_plan_id = $this->make_plan( $repo, $second_group_id, 'Second', 'lite', 2 );
+		$first_plan_id  = $this->make_plan( $repo, $group_id, 'First', 'lite', 1 );
+		$second_plan_id = $this->make_plan( $repo, $group_id, 'Second', 'lite', 2 );
 
-		$plans = $repo->query( array( 'group_ids' => null ) );
+		$plans = $repo->query( array( 'ids' => null ) );
 
 		$this->assertSame( array( $first_plan_id, $second_plan_id ), array_map( static fn ( Plan $plan ): ?int => $plan->get_id(), $plans ) );
-		$this->assertSame( 2, $repo->count( array( 'group_ids' => null ) ) );
+		$this->assertSame( 2, $repo->count( array( 'ids' => null ) ) );
 	}
 
 	public function test_delete_removes_the_row(): void {

@@ -27,13 +27,13 @@ class ProductApplicabilityStoreTest extends EngineIntegrationTestCase {
 	}
 
 	/**
-	 * Read the raw group-id meta rows as ints.
+	 * Read the raw plan-id meta rows as ints.
 	 *
 	 * @param int $product_id Product id.
 	 * @return array<int, int>
 	 */
-	private function group_id_rows( int $product_id ): array {
-		$rows = get_post_meta( $product_id, ProductApplicabilityStore::META_GROUP_IDS, false );
+	private function plan_id_rows( int $product_id ): array {
+		$rows = get_post_meta( $product_id, ProductApplicabilityStore::META_PLAN_IDS, false );
 
 		$ids = array();
 		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
@@ -48,7 +48,7 @@ class ProductApplicabilityStoreTest extends EngineIntegrationTestCase {
 		$applicability = $store->get( $this->make_product() );
 
 		$this->assertSame( ProductApplicability::MODE_DISABLE, $applicability->get_mode() );
-		$this->assertSame( array(), $applicability->get_group_ids() );
+		$this->assertSame( array(), $applicability->get_plan_ids() );
 		$this->assertTrue( $applicability->allows_one_time() );
 	}
 
@@ -60,7 +60,7 @@ class ProductApplicabilityStoreTest extends EngineIntegrationTestCase {
 		$fetched = $store->get( $product_id );
 
 		$this->assertSame( ProductApplicability::MODE_DISABLE, $fetched->get_mode() );
-		$this->assertSame( array(), $fetched->get_group_ids() );
+		$this->assertSame( array(), $fetched->get_plan_ids() );
 		$this->assertFalse( $fetched->allows_one_time() );
 	}
 
@@ -72,7 +72,7 @@ class ProductApplicabilityStoreTest extends EngineIntegrationTestCase {
 		$fetched = $store->get( $product_id );
 
 		$this->assertSame( ProductApplicability::MODE_INHERIT_ALL, $fetched->get_mode() );
-		$this->assertSame( array(), $fetched->get_group_ids() );
+		$this->assertSame( array(), $fetched->get_plan_ids() );
 		$this->assertTrue( $fetched->allows_one_time() );
 	}
 
@@ -84,28 +84,28 @@ class ProductApplicabilityStoreTest extends EngineIntegrationTestCase {
 		$fetched = $store->get( $product_id );
 
 		$this->assertSame( ProductApplicability::MODE_INHERIT_SELECT, $fetched->get_mode() );
-		$this->assertSame( array( 3, 7 ), $fetched->get_group_ids() );
+		$this->assertSame( array( 3, 7 ), $fetched->get_plan_ids() );
 		$this->assertFalse( $fetched->allows_one_time() );
 	}
 
-	public function test_switching_select_to_all_clears_group_rows(): void {
+	public function test_switching_select_to_all_clears_plan_rows(): void {
 		$store      = new ProductApplicabilityStore();
 		$product_id = $this->make_product();
 
 		$store->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( 3, 7 ) ) );
 		$store->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_ALL ) );
 
-		$this->assertSame( array(), $this->group_id_rows( $product_id ) );
+		$this->assertSame( array(), $this->plan_id_rows( $product_id ) );
 		$this->assertSame( ProductApplicability::MODE_INHERIT_ALL, $store->get( $product_id )->get_mode() );
 	}
 
-	public function test_group_ids_are_stored_one_row_each(): void {
+	public function test_plan_ids_are_stored_one_row_each(): void {
 		$store      = new ProductApplicabilityStore();
 		$product_id = $this->make_product();
 
 		$store->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( 3, 7, 9 ) ) );
 
-		$this->assertSame( array( 3, 7, 9 ), $this->group_id_rows( $product_id ) );
+		$this->assertSame( array( 3, 7, 9 ), $this->plan_id_rows( $product_id ) );
 	}
 
 	public function test_reconcile_removes_stale_rows_and_adds_missing_ones(): void {
@@ -115,8 +115,8 @@ class ProductApplicabilityStoreTest extends EngineIntegrationTestCase {
 		$store->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( 3, 7 ) ) );
 		$store->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( 7, 11 ) ) );
 
-		$this->assertEqualsCanonicalizing( array( 7, 11 ), $this->group_id_rows( $product_id ) );
-		$this->assertEqualsCanonicalizing( array( 7, 11 ), $store->get( $product_id )->get_group_ids() );
+		$this->assertEqualsCanonicalizing( array( 7, 11 ), $this->plan_id_rows( $product_id ) );
+		$this->assertEqualsCanonicalizing( array( 7, 11 ), $store->get( $product_id )->get_plan_ids() );
 	}
 
 	public function test_reconcile_collapses_externally_duplicated_rows(): void {
@@ -124,10 +124,10 @@ class ProductApplicabilityStoreTest extends EngineIntegrationTestCase {
 		$product_id = $this->make_product();
 
 		$store->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( 3 ) ) );
-		add_post_meta( $product_id, ProductApplicabilityStore::META_GROUP_IDS, 3 );
+		add_post_meta( $product_id, ProductApplicabilityStore::META_PLAN_IDS, 3 );
 
 		$store->set( $product_id, new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( 3 ) ) );
 
-		$this->assertSame( array( 3 ), $this->group_id_rows( $product_id ) );
+		$this->assertSame( array( 3 ), $this->plan_id_rows( $product_id ) );
 	}
 }

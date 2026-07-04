@@ -19,11 +19,9 @@ namespace Automattic\WooCommerce\SubscriptionsEngine\Api;
 use InvalidArgumentException;
 use WC_Product;
 use Automattic\WooCommerce\SubscriptionsEngine\Core\Entity\Plan;
-use Automattic\WooCommerce\SubscriptionsEngine\Core\Entity\PlanGroup;
 use Automattic\WooCommerce\SubscriptionsEngine\Core\ValueObject\ProductApplicability;
 use Automattic\WooCommerce\SubscriptionsEngine\Integration\Catalog\ProductApplicabilityStore;
 use Automattic\WooCommerce\SubscriptionsEngine\Integration\Catalog\ProductPlanResolver;
-use Automattic\WooCommerce\SubscriptionsEngine\Integration\Storage\PlanGroupRepository;
 use Automattic\WooCommerce\SubscriptionsEngine\Integration\Storage\PlanRepository;
 
 defined( 'ABSPATH' ) || exit;
@@ -86,13 +84,13 @@ final class SellingPlans {
 	 *
 	 * Validates before writing: the product must exist and be a simple or
 	 * variable parent (variations and other product types are rejected), and
-	 * under 'inherit_select' every group id must exist and belong to the
+	 * under 'inherit_select' every plan id must exist and belong to the
 	 * caller's extension slug. Nothing is written when validation fails.
 	 *
 	 * @param int                  $product_id     Parent product id.
 	 * @param ProductApplicability $applicability  Applicability to persist.
 	 * @param string               $extension_slug Extension slug of the caller.
-	 * @throws InvalidArgumentException If the product is missing or not a simple/variable parent, or a group id does not exist or belongs to another extension.
+	 * @throws InvalidArgumentException If the product is missing or not a simple/variable parent, or a plan id does not exist or belongs to another extension.
 	 */
 	public static function set_product_applicability( int $product_id, ProductApplicability $applicability, string $extension_slug ): void {
 		$product = wc_get_product( $product_id );
@@ -109,12 +107,11 @@ final class SellingPlans {
 		}
 
 		if ( ProductApplicability::MODE_INHERIT_SELECT === $applicability->get_mode() ) {
-			$group_repository = new PlanGroupRepository();
-			foreach ( $applicability->get_group_ids() as $group_id ) {
-				$group = $group_repository->find( $group_id );
-				if ( null === $group || $group->get_extension_slug() !== $extension_slug ) {
+			$plan_repository = new PlanRepository();
+			foreach ( $applicability->get_plan_ids() as $plan_id ) {
+				if ( null === $plan_repository->find( $plan_id, $extension_slug ) ) {
 					throw new InvalidArgumentException(
-						esc_html( sprintf( 'SellingPlans: plan group %d does not exist for extension "%s".', $group_id, $extension_slug ) )
+						esc_html( sprintf( 'SellingPlans: plan %d does not exist for extension "%s".', $plan_id, $extension_slug ) )
 					);
 				}
 			}
@@ -125,7 +122,7 @@ final class SellingPlans {
 
 	/**
 	 * List an extension's active plans in display order - the read behind a
-	 * plan-selection UI. Group linkage rides on each entity via get_group_id().
+	 * plan-selection UI.
 	 *
 	 * @param string $extension_slug Extension slug scope.
 	 * @return array<int, Plan> Plans in display order.
@@ -134,24 +131,6 @@ final class SellingPlans {
 		return ( new PlanRepository() )->query(
 			array(
 				'status'         => Plan::STATUS_ACTIVE,
-				'extension_slug' => $extension_slug,
-				'limit'          => self::PLAN_QUERY_LIMIT,
-			)
-		);
-	}
-
-	/**
-	 * List an extension's plan groups - the attach unit behind a selection UI.
-	 *
-	 * Groups carry the merchant-facing name for a plan offering; pair with
-	 * list_plans() (keyed by get_group_id()) to render a selection table.
-	 *
-	 * @param string $extension_slug Extension slug scope.
-	 * @return array<int, PlanGroup> Groups in id order.
-	 */
-	public static function list_groups( string $extension_slug ): array {
-		return ( new PlanGroupRepository() )->query(
-			array(
 				'extension_slug' => $extension_slug,
 				'limit'          => self::PLAN_QUERY_LIMIT,
 			)

@@ -124,17 +124,17 @@ class ProductPlanResolverTest extends EngineIntegrationTestCase {
 		$this->assertSame( array( $first_id, $second_id ), self::plan_ids( $plans ) );
 	}
 
-	public function test_inherit_select_resolves_only_attached_groups(): void {
-		$attached_group_id = $this->make_group( 'attached-group' );
-		$other_group_id    = $this->make_group( 'unattached-group' );
-		$product_id        = $this->make_product();
+	public function test_inherit_select_resolves_only_attached_active_plans(): void {
+		$group_id   = $this->make_group( 'select-group' );
+		$product_id = $this->make_product();
 
-		$attached_plan_id = $this->make_plan( $attached_group_id, 'Attached' );
-		$this->make_plan( $other_group_id, 'Unattached' );
+		$attached_plan_id = $this->make_plan( $group_id, 'Attached' );
+		$this->make_plan( $group_id, 'Unattached' );
+		$archived_plan_id = $this->make_plan( $group_id, 'Archived attached', array( 'status' => Plan::STATUS_ARCHIVED ) );
 
 		( new ProductApplicabilityStore() )->set(
 			$product_id,
-			new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $attached_group_id ) )
+			new ProductApplicability( ProductApplicability::MODE_INHERIT_SELECT, array( $attached_plan_id, $archived_plan_id ) )
 		);
 
 		$plans = ( new ProductPlanResolver() )->for_product( $product_id, self::SLUG );
