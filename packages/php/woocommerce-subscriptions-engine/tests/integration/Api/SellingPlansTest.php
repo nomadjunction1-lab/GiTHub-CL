@@ -216,6 +216,25 @@ class SellingPlansTest extends EngineIntegrationTestCase {
 		$this->assertSame( $group_id, $plans[0]->get_group_id() );
 	}
 
+	public function test_list_groups_returns_own_groups_with_names_in_id_order(): void {
+		$first_id  = $this->make_group( 'names-a' );
+		$second_id = $this->make_group( 'names-b' );
+		$this->make_group( 'names-foreign', 'other-extension' );
+
+		$groups = SellingPlans::list_groups( self::SLUG );
+
+		$this->assertSame(
+			array( $first_id, $second_id ),
+			array_map(
+				static function ( PlanGroup $group ): ?int {
+					return $group->get_id();
+				},
+				$groups
+			)
+		);
+		$this->assertSame( 'Group names-a', $groups[0]->get_name() );
+	}
+
 	public function test_for_product_resolves_through_the_facade(): void {
 		$group_id   = $this->make_group( 'facade-smoke' );
 		$product_id = $this->make_product();

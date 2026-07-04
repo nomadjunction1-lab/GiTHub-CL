@@ -19,6 +19,7 @@ namespace Automattic\WooCommerce\SubscriptionsEngine\Api;
 use InvalidArgumentException;
 use WC_Product;
 use Automattic\WooCommerce\SubscriptionsEngine\Core\Entity\Plan;
+use Automattic\WooCommerce\SubscriptionsEngine\Core\Entity\PlanGroup;
 use Automattic\WooCommerce\SubscriptionsEngine\Core\ValueObject\ProductApplicability;
 use Automattic\WooCommerce\SubscriptionsEngine\Integration\Catalog\ProductApplicabilityStore;
 use Automattic\WooCommerce\SubscriptionsEngine\Integration\Catalog\ProductPlanResolver;
@@ -133,6 +134,24 @@ final class SellingPlans {
 		return ( new PlanRepository() )->query(
 			array(
 				'status'         => Plan::STATUS_ACTIVE,
+				'extension_slug' => $extension_slug,
+				'limit'          => self::PLAN_QUERY_LIMIT,
+			)
+		);
+	}
+
+	/**
+	 * List an extension's plan groups - the attach unit behind a selection UI.
+	 *
+	 * Groups carry the merchant-facing name for a plan offering; pair with
+	 * list_plans() (keyed by get_group_id()) to render a selection table.
+	 *
+	 * @param string $extension_slug Extension slug scope.
+	 * @return array<int, PlanGroup> Groups in id order.
+	 */
+	public static function list_groups( string $extension_slug ): array {
+		return ( new PlanGroupRepository() )->query(
+			array(
 				'extension_slug' => $extension_slug,
 				'limit'          => self::PLAN_QUERY_LIMIT,
 			)
